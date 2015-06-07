@@ -1,0 +1,1602 @@
+<h1> Earthquake Analysis For Magnitude 7 And Higher Since 1900  </h1> 
+<h4> by Wanda Chen </h4>
+===================
+
+<h5>  For this project, I would like to answer the following few questions:
+<ul>
+<li>Which decades had the largest and most earthquakes since 1900? </li>
+<li>Which area had the most amount of earthquakes since 1900? </li>
+<li>Is there any relation between magnitude and depth of the epicenter? </li>
+<li>Which month has the most amount of earthquakes since 1900?  (Maybe it related to the gravity of Moon and Sun?) </li>
+<li>Possible the relationship between magType and magnitude? </li>
+</ul>
+Because I was not sure how I should approach the problems, and all I had was the dataset and the graph from the USGS that it created (1900-2013) (http://earthquake.usgs.gov/earthquakes/world/seismicity_maps/), so I may just approach by graphing as many diagrams to search the connection and recreated the graph with wider data range that USGS created.   The approach method for this project is "guess -> try -> investigate -> make conclusion(if possible)".
+</h5>
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+
+# Load all of the packages that you end up using
+# in your analysis in this code chunk.
+
+# Notice that the parameter "echo" was set to FALSE for this code chunk.
+# This prevents the code from displaying in the knitted HTML output.
+# You should set echo=FALSE for all code chunks in your file.
+
+### make sure in the correct working directory
+### getwd()
+### setwd('C:/Udacity/Data Analysis/Project 3/Final Project')
+
+library(ggplot2)
+library(knitr)
+require(plyr)
+library(dplyr)
+library(tidyr)
+library(reshape2)
+library(GGally)
+library(scales)
+library(memisc)
+#library(maptools)
+#library(maps)
+library(gridExtra)
+library(grid)
+```
+
+######-----------------------
+
+##Basic Information about the Data
+```{r echo=FALSE, Load_the_Data}
+# Load the Data
+ef = read.csv("earthquake_7_1900.csv", sep=',')
+#1318 obs of 15 variables
+
+#list the header of dataframe
+names(ef)
+
+group <- ef$time
+ef$New_Time <- gsub("T", " ", group)
+ef$New_Time <- gsub("Z", "", ef$New_Time)
+
+ef$Date <- as.Date(ef$New_Time)
+
+ef$Time <- format(as.POSIXct(ef$New_Time),format="%H:%M:%S")
+
+ef$Year = as.numeric(format(ef$Date, format = "%Y"), data=ef$Date)
+ef$Month = as.numeric(format(ef$Date, format = "%m"), data=ef$Date)
+ef$Day = as.numeric(format(ef$Date, format = "%d"), data=ef$Date)
+ef$Hour = as.numeric(format(as.POSIXct(ef$New_Time),format="%H"))
+
+#category depth 
+#summary(ef$depth)
+#    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#    0.00   15.00   28.75   71.98   40.00  675.40 
+
+cond <- ef$depth < 70 & ef$depth >= 1
+ef$depth_class <- ifelse(cond, 'shallow','intermediate')
+cond <- ef$depth >= 300
+ef$depth_class <- ifelse(cond, 'deep', ef$depth_class)
+cond <- ef$depth == 0
+ef$depth_class <- ifelse(cond, 'surface', ef$depth_class)
+```
+
+##### 1) table of depth_class 2) summary of magnitude 3) table of mag_class
+```{r echo=FALSE}
+table(ef$depth_class)
+
+#category magnitudes 
+summary(ef$mag)
+
+ef$mag_class <- cut(ef$mag, 
+             labels = c("class1", "class2", "class3", "class4", "class5", "class6"),
+             breaks=seq(6.9, 10.0, by = 0.5))
+table (ef$mag_class)
+
+```
+
+####category longitude and latitude
+```{r echo=FALSE}
+ef$long <- (ef$longitude) %% 360
+
+cond2<- ef$long > 180.0
+ef$long_class <- ifelse(cond2, 'WestH','EastH')
+cond2<- ef$long == 180.0
+ef$long_class <- ifelse(cond2, 'PrimeMeridian', ef$long_class)
+cond3<- ef$latitude > 0.0
+ef$lat_class <- ifelse(cond3, 'NorthH', 'SouthH')
+cond3<- ef$latitude == 0.0
+ef$lat_class <- ifelse(cond3, 'Equator', ef$lat_class)
+
+```
+
+##### Determine the decade for each event - 
+###### 1) table of decade 2) variable in the dataset 3) information for the variables
+```{r echo=FALSE}
+ef$decade <- cut(ef$Year, breaks=seq(1899, 2019, by = 10),
+             labels = c("1900s", "1910s", "1920s", "1930s", "1940s", "1950s", "1960s", "1970s", "1980s", "1990", "2000s", "2010s"))
+table (ef$decade)
+names(ef)
+
+str(ef)
+
+Palette1 <- c('blue','dark green','red','brown','pink', 'orange', 'yellow')
+```
+######--------------------------
+
+# Univariate Plots Section 
+##### Histogram: 1) All data file (7.0 <= mag < 10); 2) 7.0 <= mag < 7.5
+```{r echo=FALSE, Univariate_Plots}
+#histogram
+#1. a) All data file (7.0 <= mag < 10)
+ggplot(aes(x= mag), data=ef) +
+  geom_histogram(aes(fill = ..count..), binwidth=.1) +
+#  scale_fill_gradient("Count", low = "green", high = "red") +
+  scale_x_continuous(lim=c(7, 10), breaks=seq(7, 10, 0.2)) +
+  scale_y_log10() +
+  ylab('Count (log10)') +
+  xlab('magnitude (Richter scale)') +
+  ggtitle("Earthquake Magnitude 7 and Higher 1900-2015(April)")
+
+
+#2. a) 7.0 <= mag < 7.5
+c1 <- subset(ef, mag_class=='class1', !is.na(mag))
+ggplot(aes(x= mag), data=c1) +
+  geom_histogram(aes(fill = ..count..),binwidth=.05) +
+#  scale_fill_gradient("Count", low = "green", high = "blue") +
+  scale_x_continuous(breaks=seq(7.0, 7.5, 0.1)) +
+  ggtitle("Earthquake magnitude < 7.5 1900-2015(April)")
+
+```
+
+##### 3) magnitude -- 7.5 <= mag < 8.0; 
+##### 4) magnitude -- 8.0 <= mag < 8.5
+```{r echo=FALSE}
+#3. a) 7.5 <= mag < 8.0
+c2 <-subset(ef, mag_class=='class2')
+
+ggplot(aes(x= mag), data=c2) +
+  geom_histogram(aes(fill = ..count..),binwidth=.05) +
+#  scale_fill_gradient("Count", low = "blue", high = "red") +
+  scale_x_continuous(breaks=seq(7.5, 8.0, 0.1)) +
+  ggtitle("Earthquake magnitude < 8.0 and >= 7.5 Since 1900")
+
+#4. 8.0 <= mag < 8.5
+c3 <- subset(ef, mag_class== 'class3')
+
+ggplot(aes(x= mag), data=c3) +
+  geom_histogram(aes(fill = ..count..), binwidth=.03) +
+#  scale_fill_gradient("Count", low = "brown", high = "orange") +
+  scale_x_continuous(breaks=seq(8.0, 8.5, 0.1)) +
+  ggtitle("Earthquake magnitude < 8.5 and >= 8.0 1900-2015(April)")
+
+```
+
+##### 5) magnitude > 8.5 
+```{r echo=FALSE}
+#5. mag < 8.5
+c4 <- subset(ef, mag_class== 'class4' | mag_class == 'class5' | mag_class=='class6')
+
+ggplot(aes(x= mag), data=c4) +
+  geom_histogram(aes(fill = ..count..), binwidth=.04) +
+#  scale_fill_gradient("Count", low = "red", high = "blue") +
+  scale_x_continuous(breaks=seq(8.5, 10.0, 0.1)) +
+  ggtitle("Earthquake magnitude >= 8.5 1900-2015(April)")
+
+```
+
+#### Information about the dataset - 1900 - 2015 (April)
+######Summary of earthquake a) magnitude, b) months, c)depth in the dataset
+
+```{r echo=FALSE}
+summary(ef$mag)
+summary(ef$Month)
+summary(ef$depth)
+```
+
+######a) Number of earthquake magnitude and its frequency
+######b) Number of earthquake happened for each Month
+######c) Number of earthquake happened for each Hour
+```{r echo=FALSE}
+table(ef$mag)
+table(ef$Month)
+table(ef$Hour)
+```
+
+##### Information about amount of epicenter location
+######d) Number of earthquake happened in East hemisphere and West hemisphere
+######e) Number of earthquake happened in North hemisphere and South hemisphere
+
+```{r echo=FALSE}
+table(ef$long_class)
+table(ef$lat_class)
+```
+
+#### Histogram of the epic center
+###### a) number distribution of each depth; b) number for each depth_class; c) number for each magnitude_class
+
+```{r echo=FALSE}
+qplot(x=depth, data=ef,binwidth=2) +
+  scale_x_continuous(breaks=seq(0, 700, 50)) +
+  xlab('depth (km)') +
+  scale_y_sqrt() +
+  ylab('sqrt(Count)') +
+  ggtitle('Epicenter Depth count')
+
+qplot(x=depth_class, data=ef,binwidth=1) +
+  ggtitle('Epicenter Depth_class count')
+
+qplot(x=mag_class, data=ef,binwidth=.5) +
+  ggtitle('Epicenter Magnitude_class count')
+```
+
+
+##### Number of earthquakes for each decade
+```{r echo=FALSE}
+table(ef$decade)
+# 1900s 1910s 1920s 1930s 1940s 1950s 1960s 1970s 1980s 1990s 2000s 2010s 
+#   30    60   112   126   110   101   139   131   110   155   148    96
+qplot(x=decade, data=ef,binwidth=.25) +
+  ggtitle('Epicenter in each decade count')
+```
+
+######-----------------------
+
+## Univariate Analysis
+
+### What is the structure of your dataset?
+
+#### This is the basic structure of the .csv file that I downloaded: 
+##### time - Time when the event occurred. Times are reported in milliseconds since the epoch ( 1970-01-01T00:00:00.000Z), and do not include leap seconds. In certain output formats, the date is formatted for readability.
+##### latitude - Decimal degrees latitude. Positive values for northern latitudes. Negative values for southern latitudes.
+##### longitude - Decimal degrees longitude. Positive values for eastern longitudes. Negative values for western longitudes.
+##### depth - depth of the event in the kilometers
+##### mag - The magnitude for the event
+##### magType - The method or algorithm used to calculate the preferred magnitude for the event. Includes "Md", "Ml", "Ms", "Mw", "Me", "Mi", "Mb", "MLg".
+##### nst - The total number of Number of seismic stations which reported P- and S-arrival times for this earthquake.
+##### gap - The largest azimuthal gap between azimuthally adjacent stations (in degrees). In general, the smaller this number, the more reliable is the calculated horizontal position of the earthquake.
+##### dmin - Horizontal distance from the epicenter to the nearest station (in degrees). 1 degree is approximately 111.2 kilometers. In general, the smaller this number, the more reliable is the calculated depth of the earthquake.
+##### rms - The root-mean-square (RMS) travel time residual, in sec, using all weights. This parameter provides a measure of the fit of the observed arrival times to the predicted arrival times for this location. Smaller numbers reflect a better fit of the data. The value is dependent on the accuracy of the velocity model used to compute the earthquake location, the quality weights assigned to the arrival time data, and the procedure used to locate the earthquake.
+##### net - The ID of a data contributor. Identifies the network considered to be the preferred source of information for this event.  The value includes: ak, at, ci, hv, ld, mb, nc, nm, nn, pr, pt, se, us, uu, uw.
+##### id - A (generally) two-character network identifier with a (generally) eight-character network-assigned code.
+##### updated - Time when the event was most recently updated. 
+##### place - Textual description of named geographic region near to the event.  This may be a city name, or a Flinn-Engdahl Region name.
+
+####  The variables that were created from the dataset - 
+##### Date - the date when the event happened 
+##### Year - the year when the event happened (4 digits value; 1900 - 2015)
+##### Month - the month when the event happened (1-2 digits value; 1-12)
+##### Day - the day when the event happened (1-2 digits value; 1-31)
+##### Hour - the hour when the event happened (1-2 digits value; 0-23)
+##### depth_class - different zones for the depth of the epicenter:
+######   depth = 0 -- character string - "surface"
+######   0 < depth < 70 -- character string - "shallow"
+######   70 <= depth <= 300 -- character string - "intermediate"
+######   depth > 300 -- character string - "deep"
+#####   The zones (except depth=0) is according to USGS defined 
+##### long - it is the another way to express of longitude that shows center of graph is 180 instead of 0
+##### mag_class - the class that shows the group for the magnitude:
+######   class 1 - magnitude < 7.5
+######   class 2 - 7.5 <= magnitude < 8.0
+######   class 3 - 8.0 <= magnitude < 8.5
+######   class 4 - 8.5 <= magnitude < 9.0
+######   class 5 - magnitude >= 9.0
+##### long_class - the class that shows the group for the longitude
+######   WestH - longitude > 180.0
+######   PrimeMeridian - longitude = 180.0
+######   EastH - longitude < 180.0
+##### lat_class - the class that shows the group for the latitude
+######   NorthH - latitude > 90.0
+######   Equator - latitude = 90.0
+######   SouthH - latitude < 90.0
+##### Decade - for each 10 years in the Year field, it will determine which decade the time is in.  It ranges from the 1900s all the way to the 2010s.
+
+### What is/are the main feature(s) of interest in your dataset?
+
+##### The recent Napel earthquake makes me think about the relationship between the magnitude and depth of the epicenter, and the location. I want to know more about how location, depth, and magnitude are correlated since there are quite a number of earthquakes that have happened recently that are shallow earthquakes, with a high magnitude.  
+##### I am also interested in the month of the earthquake, and I want to know if the Sun, Moon, and the Earth, may have a relationship to earthquakes.
+
+### What other features in the dataset do you think will help support your investigation into your feature(s) of interest?
+
+##### magType field may help in my investigation.  Unfortunately, there is no fault line information; I think that fault line information will help even more than just the magType.
+
+### Did you create any new variables from existing variables in the dataset?
+
+##### Yes.  
+##### The time field in the dataset includes date and time.  I am interested in the Year and Month fields, so I split the time field into Date, and Time.  The Date field is split into 3 fields - Year, Month, Day.  I only extracted the Hour from the Time field.
+##### depth_class - a field that shows different depth class (surface, shallow intermediate, deep) according to its depth.  
+##### mag_class - a field that shows different magnitude class (separated by range of 0.5 magnitude)
+##### long_class - a field that describes the longitude on the earth (180 degree as divider).  West Hemisphere, East Hemisphere, Prime Meridan.
+##### lat_class - similar to long_class, but it describes latitude (0 degree is the divider).  North Hemisphere, South Hemisphere, Equator.
+##### decade - it shows the number of the decade for the year.
+
+### Of the features you investigated, were there any unusual distributions? Did you perform any operations on the data to tidy, adjust, or change the form of the data? If so, why did you do this?
+
+##### I adjusted the dateset to make sure the date is split off from the time field. The Date field splits to 3 fields - Year, Month, Day, so it can help me to analyze the data set.
+##### From the data it is rare to have magnitude 9 or higher earthquakes.  
+##### Also it is less likely to have large earthquakes that are magnitude 8.5 or higher and depth is more than 100 km.
+
+######-----------------------
+
+# Bivariate Plots Section
+
+##### (1) For this section, I would like to investigate to see if there is any relation on the location (longitude & latitude).
+#### Want to look though location of epicenter from different point of view 
+#### scatterplot to show where earthquakes happened
+##### a) the original longitude; b)the modified longitude
+
+```{r echo=FALSE, Bivariate_Plots}
+#look though location of epicenter from different point of view 
+
+# original longitude
+ggplot(aes(y = latitude, x=longitude), data=ef) +
+  geom_point(alpha=1/4) +
+  xlab('longitude (degree) - original given') +
+  ylab('latitude (degree)') +
+  scale_y_continuous(breaks=seq(-90, 90, 20)) +
+  scale_x_continuous(breaks=seq(-180, 180, 30)) +
+  ggtitle("Earthquake Magnitude 7 and above since 1900")
+
+#Modify longitude
+## Hours distribution when Earthquake happened 
+ggplot(aes(y = latitude, x=long), data=ef) +
+  geom_point(alpha=1/4) +
+  xlab("longitude (degree) - modified") +
+  ylab('latitude (degree)') +
+  scale_x_continuous(breaks=seq(0, 360, 30)) +  
+  scale_y_continuous(breaks=seq(-90, 90, 20)) +
+  theme(legend.position = "bottom") +
+  ggtitle("Earthquake Location since 1900")
+```
+
+##### It is hard to tell where the earthquake focus on the first graph, after modified the longitude, it is easier to see the famous "Ring of Fire".
+
+#### (2) Other possible variables summary
+##### Just want to know if other variables may produce interesting result
+##### 1) magnitude methods/algorithms 2) network distribtion
+
+```{r echo=FALSE}
+#magType vs magnitude
+
+qplot(x= magType, y=mag, data=subset(ef, !is.na(magType))) +
+  geom_boxplot() +
+  ylab('magnitude (Richter scale)') +
+  coord_cartesian(ylim=c(7,8)) +
+  ggtitle("Earthquake magnitude methods/algorithms distribution")
+
+#magType vs depth
+qplot(x=magType, y=depth, data=subset(ef, !is.na(net))) +
+  geom_boxplot() +
+  ylab('depth (km)') +
+  coord_cartesian(ylim=c(0,175)) +
+  ggtitle("Earthquake magnitude (depth) network distribution")
+
+summary (ef$magType)
+
+#net vs magnitude
+qplot(x=net, y=mag, data=subset(ef, !is.na(net))) +
+  geom_boxplot() +
+  ylab('magnitude (Richter scale)') +
+  coord_cartesian(ylim=c(7,8)) +
+  ggtitle("Earthquake magnitude network distribution")
+
+#net vs depth
+qplot(x=net, y=depth, data=subset(ef, !is.na(net))) +
+  geom_boxplot() +
+  ylab('depth (km)') +
+  coord_cartesian(ylim=c(0,100)) +
+  ggtitle("Earthquake magnitude (depth) network distribution")
+
+summary (ef$net)
+
+#by(ef$mag, ef$decade, summary)
+#by(ef$mag, ef$Hour, summary)
+#by(ef$mag, ef$Month, summary)
+```
+
+##### Most of earthquake magType (the method or algorithm used to calculate the preferred magnitude) is "mw" then "mwc".  The top 2 data contributor are: "iscgem" and "us". 
+
+#### (3) Investigate the data that is difference among the Richter magnitude scale
+##### Richter magnitude scale was defined in 1935, and widely used after 1970.  The graphs here shows how the earthquake spread out: 1)before 1935; 2) Between 1935 and 1970; 3)After 1970. 
+
+```{r echo=FALSE}
+#Before 1935
+ggplot(aes(y = latitude, x=long), data=subset(ef, Year < 1935)) +
+  geom_point(alpha=1/3) +
+  xlab("longitude (degree)") +
+  ylab('latitude (degree)') +
+  theme(legend.position="right") +
+  scale_colour_manual(values=Palette1) +
+  scale_x_continuous(lim=c(0, 360), breaks=seq(0, 360, 30)) +
+  scale_y_continuous(lim=c(-75, 75), breaks=seq(-75, 75, 15)) +
+  ggtitle("Earthquake location that happened before 1935")
+
+#Between 1935 and 1970
+ggplot(aes(y = latitude, x=long), 
+       data=subset(ef, Year >= 1935 & Year < 1970 )) +
+  geom_point(alpha=1/3) +
+  xlab("longitude (degree)") +
+  ylab('latitude (degree)') +
+  theme(legend.position="right") +
+  scale_colour_manual(values=Palette1) +
+  scale_x_continuous(lim=c(0, 360), breaks=seq(0, 360, 30)) +
+  scale_y_continuous(lim=c(-75, 75), breaks=seq(-75, 75, 15)) +
+  ggtitle("Earthquake location that happened between 1935 and 1970")
+
+#After 1970
+ggplot(aes(y = latitude, x=long), data=subset(ef, Year >= 1970)) +
+  geom_point(alpha=1/4) +
+  xlab("longitude (degree)") +
+  ylab('latitude (degree)') +
+  theme(legend.position="right") +
+  scale_colour_manual(values=Palette1) +
+  scale_x_continuous(lim=c(0, 360), breaks=seq(0, 360, 30)) +
+  scale_y_continuous(lim=c(-75, 75), breaks=seq(-75, 75, 15)) +
+  ggtitle("Earthquake location that happened after 1970")
+
+```
+
+##### Although Richter magnitude scale did not widely use until after 1970, most of the earthquake stil happened around "Ring of Fire", no matter which period (before 1935, between 1935 and 1970, or after 1970).  Also it happend more on the western side of ring than eastern side. 
+
+#### (4) Epicenter analysis - 
+##### Want to look through different depth, magnitude, and time relation to see if there were some relations exist among any of them.
+##### 1) magnitude vs depth_class w/ linear regression line
+##### 2) depth vs mag_class w/ linear regression line
+##### 3) depth vs Month w/ linear regression line
+##### 4) Month vs depth w/ mean line
+##### 5) Month vs magnitude w/ linear regression line
+##### 6) Year vs magnitude w/ mean line 
+
+```{r echo=FALSE}
+## 1) magnitude vs depth_class w/ linear regression line
+ggplot(aes(x= mag, y=depth_class), data=ef) +
+  geom_jitter(color="brown", position="jitter", 
+              stat="identity", alpha=1/5) +
+  xlab('magnitude (Richter scale)') +
+  scale_x_continuous(lim=c(7, 9.6), breaks=seq(7, 9.6, 0.2)) +
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle("Magnitude vs. Depth_class of Epicenter w/ linear regression")
+
+## 2) depth vs mag_class w/ linear regression line
+ggplot(aes(x= depth, y=mag_class), data=ef) +
+  xlab('depth (km)') +
+  scale_x_continuous(lim=c(0, 700), breaks=seq(0, 700, 50)) +
+  geom_jitter(color="#980123", position="jitter", 
+              stat="identity", alpha=1/3) +
+  stat_smooth(method="lm", se=FALSE) +
+  ggtitle("Depth vs. mag_class of Epicenter w/ linear regression")
+
+## 3) Month vs depth w/ linear regression line
+ggplot(aes(x= Month, y=depth), data=ef) +
+  scale_x_continuous(lim=c(1, 12), breaks=seq(1, 12, 1)) +
+  scale_y_continuous(lim=c(0, 675), breaks=seq(0, 675, 75)) +
+  geom_jitter(color="#039876", position="jitter", 
+              stat="identity", alpha=1/5) +
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle("Earthquakes Month vs. Depth_class of Epi Center w/ linear regression")
+
+## 4) Month vs depth w/ mean line
+ggplot(aes(x= Month, y=depth), data=ef) +
+  scale_x_continuous(lim=c(1, 12), breaks=seq(1, 12, 1)) +
+  scale_y_continuous(lim=c(0, 675), breaks=seq(0, 675, 75)) +
+  geom_jitter(color="#074839", position="jitter", 
+              stat="identity", alpha=1/5) +
+  stat_summary(fun.y = mean, geom="line", color="gold") +
+  ylab('depth (km)') +
+  ggtitle("Earthquakes Month vs. Depth of Epi Center w/ mean")
+
+## 5) Month vs magnitude w/ linear regression line
+ggplot(aes(x= Month, y=mag), data=ef) +
+  scale_x_continuous(lim=c(1, 12), breaks=seq(1, 12, 1)) +
+  scale_y_continuous(lim=c(7,9.6), breaks=seq(7, 9.6, 0.5)) +
+  geom_jitter(color="#c24680", position="jitter", alpha=1/4) +
+  geom_smooth(method=lm, se=FALSE) +
+  ylab('magnitude (Richter scale)') +
+  ggtitle("Month vs. Magnitude of Epi Center w/ Linear Regression")
+
+## 6) Year vs magnitude w/ mean line & linear regression line 
+ggplot(aes(x= Year, y=mag), data=ef) +
+  scale_x_continuous(lim=c(1900, 2015), breaks=seq(1900, 2015, 10)) +
+  scale_y_continuous(lim=c(7,9.6), breaks=seq(7, 9.6, 0.5)) +
+  ylab('magnitude (Richter scale)') +
+  geom_jitter(color="#d13579", position="jitter", alpha=1/4) +
+  geom_smooth(method=lm, se=FALSE, color = "dark green") +
+  stat_summary(fun.y = mean, geom="line", color="blue") +
+  ggtitle("Year vs. Magnitude of Epicenter w/ Mean, linear regression")
+
+```
+
+##### When the graph is compared with magnitude, most of linear regression line is less than 7.5 Richter magnitude scale.  When the graph is compared with depth, the linear regression line is along 75 km line.
+
+#### (5) Boxplot analysis - median value for each mag_class
+##### I want to see how the median value for each relation comparison
+##### 1) mag_lass vs Year - class1 -> class 5: 1970, 1965, 1958, 1960, 1984
+##### 2) mag_class vs Month - class1 -> class 5: 6, 7, 7, 4, 4
+##### 3) mag_class vs Hour - class1 -> class5: 12, 11, 12, 14, 4
+##### 4) Hour vs magnitude
+##### 5) Month vs magnitude
+##### 6) decade vs magnitude
+
+```{r echo=FALSE}
+#1) mag_class vs Year
+qplot(y=Year, x= mag_class, data=subset(ef, !is.na(Year)), 
+              geom='Boxplot', binwidth=5) +
+  scale_y_continuous(lim=c(1900, 2015), breaks=seq(1900, 2015, 10)) +
+  ggtitle("Earthquake magnitude class vs Year")
+
+#table(ef$Year, ef$mag_class)
+#by(ef$Year, ef$mag_class, median)
+
+#2) mag_class vs Month
+qplot(y=Month, x= mag_class, data=subset(ef, !is.na(Month)), 
+              geom='Boxplot', binwidth=5) +
+  scale_y_continuous(lim=c(1, 12), breaks=seq(1, 12, 1)) +
+  ggtitle("Earthquake magnitude class vs Month")
+
+#table(ef$Month, ef$mag_class)
+#by(ef$Month, ef$mag_class, median)
+
+#3) mag_class vs Hour 
+qplot(y=Hour, x= mag_class, data=subset(ef, !is.na(Hour)), 
+              geom='Boxplot') +
+  scale_y_continuous(lim=c(0,23), breaks=seq(0,23,2)) +
+  ggtitle("Earthquake magnitude class vs Hour")
+
+#by(ef$Hour, ef$mag_class, median)
+
+#4) Hour vs magnitude
+ggplot(aes(x=factor(Hour), y=mag), data=ef) +
+  geom_boxplot() +
+  xlab("Hour") +
+  ylab("magnitude (Richter scale)") +
+  coord_cartesian(ylim=c(7,8)) +
+  ggtitle("Earthquake magnitude mean for each hour 1900-2015(April)")
+
+#5) Month vs magnitude
+ggplot(aes(x=factor(Month), y=mag), data=ef) +
+  geom_boxplot() +
+  ylab("magnitude (Richter scale)") +
+  xlab('Month') +
+  coord_cartesian(ylim=c(7,8)) +
+  ggtitle("Earthquake magnitude mean for each month 1900-2015(April)")
+
+#6) decade vs magnitude
+ggplot(aes(x=decade, y=mag), data=ef) +
+  geom_boxplot() +
+  coord_cartesian(ylim=c(7, 8)) +
+  ylab("magnitude (Richter scale)") +
+  ggtitle("Earthquake magnitude mean for each decade 1900-2015(April)")
+
+```
+
+##### The median range for class1 through class4 (magnitude < 9.0) is on 1960s, except class 5 (magnitude >= 9.0), which is 1980s.  The median range for Month to have earthquakes in between April through July.  And the median range for earthquake to happen is UTC hour 11 through hour 14, except class 5 that median is hour 4.  The median magnitude for decade, Month, and Hour is around 7.2 to 7.4.
+
+#### (6) Magnitude and Depth Relationship
+##### I want to see when it is at different % level, will it make better outcome? 
+##### 1) magnitude and depth relationship @ 95%
+###### both linear regression and mean line is along 50 km line
+##### 2) magnitude and depth relationship @ 99%
+###### both linear regression and mean line is along 75 km line
+
+```{r echo=FALSE}
+# magnitude and depth relationship @ 95%
+# both linear regression and mean line is along 75 km line
+ggplot(aes(x=mag, y=depth), data=ef) +
+  geom_point(color="#b08397", alpha=1/2) +
+  stat_smooth(method='lm') +
+  stat_summary(fun.y = mean, geom="line", color="orange") +
+  scale_x_continuous(lim=c(7, quantile(ef$mag, 0.95))) +
+  scale_y_continuous(lim=c(0, quantile(ef$depth, 0.95))) +
+  xlab('magnitude') +
+  ylab('depth (km)') +
+  ggtitle("Magnitude vs Depth @ 95% Range w/ linear regression & mean lines")
+
+# magnitude and depth relationship @ 99%
+# both linear regression and mean line is along 100 km line
+ggplot(aes(x=mag, y=depth), data=ef) +
+  geom_point(color="#e35761", alpha=1/2) +
+  stat_summary(fun.y = mean, geom="line", color="green") +
+  stat_smooth(method='lm') +
+  scale_x_continuous(lim=c(7, quantile(ef$mag, 0.99))) +
+  scale_y_continuous(lim=c(0, quantile(ef$depth, 0.99))) +
+  xlab('magnitude') +
+  ylab('depth (km)') +
+  ggtitle("Magnitude vs Depth @ 99% Range w/ linear regression & mean lines")
+```
+
+#### (7) magnitude vs each month
+##### I want to see how's earthquake distribute through different months.  Includes especially for the giant ones.  This is extended from first set of univariate.
+
+##### 1) all magnitude; 2) magnitude < 7.5; 3) 7.5 <= magnitude < 8.0; 4) 8.0 <= magnitude < 8.5; 5) magnitude >= 8.5 
+```{r echo=FALSE}
+# 1b) All magnitude: look at each month
+ggplot(aes(x= mag), data=ef) +
+  geom_histogram(aes(fill = ..count..), binwidth=.1) +
+#  scale_fill_gradient("Count", low = "green", high = "red") +
+  scale_x_continuous(lim=c(7, 9.6), breaks=seq(7, 9.8, 0.4)) +
+  scale_y_sqrt() +
+  xlab('magnitude (Richter scale)') +
+  ylab('sqrt(count)') +
+  facet_wrap(~Month, ncol=3) +
+  ggtitle("Earthquake magnitude 7 and Higher for each month")
+
+# 2b) 7.0 <= mag < 7.5 look at each month
+ggplot(aes(x= mag), data=c1) +
+  geom_histogram(aes(fill = ..count..), binwidth=.05) +
+#  scale_fill_gradient("Count", low = "green", high = "blue") +
+  scale_x_continuous(breaks=seq(7.0, 7.5, 0.1)) +
+  facet_wrap(~Month, ncol=3) +
+  ggtitle("Earthquake magnitude < 7.5 for each month")
+
+# 3b) a) 7.5 <= mag < 8.0 look at each month
+ggplot(aes(x= mag), data=c2) +
+  geom_histogram(aes(fill = ..count..), binwidth=.05) +
+#  scale_fill_gradient("Count", low = "blue", high = "red") +
+  scale_x_continuous(breaks=seq(7.5, 8.0, 0.1)) +
+  facet_wrap(~Month, ncol=3) +
+  ggtitle("Earthquake magnitude < 8 and >= 7.5 for each month")
+
+# 4b) 8.0 <= mag < 8.5 look at each month
+ggplot(aes(x= mag), data=c3) +
+  geom_histogram(aes(fill = ..count..), binwidth=.03) +
+#  scale_fill_gradient("Count", low = "brown", high = "orange") +
+  scale_x_continuous(breaks=seq(7.9, 8.6, 0.1)) +
+  facet_wrap(~Month, ncol=3) +
+  ggtitle("Earthquake magnitude < 8.5 and >= 8.0 for each month")
+
+# 5b) mag < 8.5 look at each month
+ggplot(aes(x= mag), data=c4) +
+  geom_histogram(aes(fill = ..count..), binwidth=.04) +
+#  scale_fill_gradient("Count", low = "red", high = "blue") +
+  scale_x_continuous(breaks=seq(8.5, 9.7, 0.2)) +
+  facet_wrap(~Month, ncol=3) +
+  ggtitle("Earthquake magnitude >= 8.5 for each month")
+
+```
+
+##### When the magnitude is between 7.0 and 7.9, it could happen on any month of the year.  But when the magnitude is 8.0 or higher, especially 8.5+, it only happened in certain months of the year.  It looks like March has a higher chance than other months that have 8.5 and higher magnitude earthquakes.
+
+#### (8) Other plots that look at relation of magnitude, depth, occurance frequency and variance of earthquakes.
+
+##### (a) magnitude vs depth; (b) mag_class through different year; (c) depth_class vs depth; (d) decade vs mag 
+```{r echo=FALSE}
+#(a) scatterplot between the magnitude and depth of epic center (km) 
+ggplot(aes(x= mag, y=depth), data=ef) +
+  scale_x_continuous(lim=c(7, 10), breaks=seq(7, 10, 0.2)) +
+  geom_point(aes(color=ef$mag)) +
+  ylab("depth (km)") +
+  ggtitle("Earthquakes Magnitude vs. Depth of Epicenter")
+
+#(b) freqency plot to see how different class throught out the years (bivar)
+qplot(x=Year, data=ef, geom='freqpoly', binwidth=10, color=mag_class) +
+  scale_x_continuous(lim=c(1900, 2020), breaks=seq(1900, 2020, 10)) +
+  ggtitle("Earthquake frequency for each magnitude class 1900-2015(April)")
+
+#(c) Boxplot to show how each depth class that related to its depth (bivar)
+qplot(geom='Boxplot', data=ef, x= depth_class, y=depth) +
+  ylab("depth (km)") +
+  ggtitle("Earthquake depth_class vs depth")
+
+#(d) Earthquake occurance for each decade (bivar)
+qplot(geom='Boxplot', data=ef, x=decade, y=mag) +
+  ggtitle('Occurance of earthquake for each decade')
+
+```
+
+
+######-----------------------
+
+## Bivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. How did the feature(s) of interest vary with other features in the dataset?
+
+##### From the graphs that I picked, it shows a strong relationship among magnitudes and the locations of the epicenter. A lot of major ones are located in the "Ring Of Fire" area, which is on either side of the Pacific Ocean.  
+##### It also shows strong earthquakes located in Southeast Asia, and the China/India border. It shows similarly in the graph that USGS created that most of the earthquakes happen in the border of plate boundaries "http://earthquake.usgs.gov/earthquakes/world/seismicity_maps/world.pdf".  
+##### I thought the magnitude and depth of the epicenter has some kind of correlation, but when I ran the test, all the values are really close to 0.  So, it shows there is no direct relation between the depth and magnitude. It might have some relation if the data set included casualty and financial lost of the earthquakes. However, with large earthquakes (magnitude >=8.5), the depth does have a small correlation with the magnitude; it usually happens with shallow or surface area compared with intermediate or deep earthquakes.
+
+### Did you observe any interesting relationships between the other features (not the main feature(s) of interest)?
+
+##### One of the things may be just coincidence: the earthquakes that happened in April are all shallow class so far; the earthquakes that happened in October were shallow and deep class; and the earthquakes that happened in December were shallow and intermediate. The rest of the months included all types of earthquakes.  Magnitudes that are 9 and above happened in March, May, and December.
+##### One of the methods of algorithm used to calculate the preferred magnitude for the earthquakes is "mw" including a few of the largest earthquakes, which its net (data contributor) is "iscgem".
+##### One of graphs that I found interesting is the earthquake magnitude class vs. the year it happened. The boxplot shows that the median of each mag_class is all around 1960's except for magnitude >= 9.0 (class5), and the result for the mean is also similar to the median.  The graph for Month vs mag_class also shows similar results.  Both mean and median for magnitude < 8.5 (class1, class2, class3) is around June and July; but for magnitude >= 8.5 (class4 and higher) the median is on April, and Mean is somewhere in May. With mag_class vs Hour, for class1 - class4, the mean is around Hour 11 - Hour 12.  For median it is also around Hour 11 - Hour 12 for class1 - class3, but the median for class4 is Hour 14, which is different than its mean. 
+
+### What was the strongest relationship you found?
+
+##### The strongest relationship I found is the location (latitude and longitude) vs magnitude of the earthquakes. It sits into the "Ring of Fire", which is from southeast of the Pacific Ocean toward north and all the way to the southwest of Pacific Ocean.  Also even though the Richter magnitude scale was defined around 1935, it did not become widely used until after 1970.  All the earthquakes through out the 3 different time still show the Ring of Fire has the most earthquakes than other area.
+
+######-----------------------
+
+# Multivariate Plots Section
+
+##### (0) For this section, I would like to investigate to see if there is any relation among location (longitude & latitude) and other variables.
+#### Want to look though location of epicenter from different point of view 
+#### scatterplot to show where earthquakes happened
+##### 1) depth of the epicenter - with the original latitude and longitude from the given dataset 
+##### 2) Hours distribution - with modified longitude and original lattitude
+##### 3&4) mag_class distribution - with modified longitude and original lattitude 
+##### 5&6) depth of the epicenter - with the original latitude and modified longitude 
+
+```{r echo=FALSE, Multivariate_Plots}
+#look though location of epicenter from different point of view 
+
+# original longitude - depth_class
+ggplot(aes(y = latitude, x=longitude), data=ef) +
+  geom_point(aes(color=ef$depth_class)) +
+  xlab('longitude (degree) - original given') +
+  ylab('latitude (degree)') +
+  scale_y_continuous(breaks=seq(-90, 90, 20)) +
+  scale_x_continuous(breaks=seq(-180, 180, 30)) +
+  ggtitle("Earthquake Magnitude 7 and above since 1900")
+
+#Modify longitude
+## Hours distribution when Earthquake happened 
+ggplot(aes(y = latitude, x=long), data=ef) +
+  geom_point(aes(color=ef$Hour), alpha=1/3) +
+  xlab("longitude (degree) - modified") +
+  ylab('latitude (degree)') +
+  scale_x_continuous(breaks=seq(0, 360, 30)) +  
+  scale_y_continuous(breaks=seq(-90, 90, 20)) +
+  theme(legend.position = "bottom") +
+  ggtitle("Earthquake Location vs Hour since 1900")
+
+## mag_class distribution
+ggplot(aes(y = latitude, x=long), data=ef) +
+  geom_jitter(aes(color=ef$mag_class), position="jitter", 
+              stat="identity", alpha=1/3) +
+  xlab("longitude (degree) - modified") +
+  ylab('latitude (degree)') +
+  scale_x_continuous(breaks=seq(0, 360, 30)) +
+  scale_y_continuous(breaks=seq(-90, 90, 30)) +
+  theme(legend.position = "bottom") +
+  ggtitle("Earthquake Location since 1900")
+
+## mag_class distribution through differnt mag_class
+ggplot(aes(y= latitude, x=long), data=ef) +
+  geom_jitter(aes(color=ef$mag_class), position="jitter", 
+              stat="identity", alpha=1/5) +
+  xlab("longitude (degree) - modified") +
+  ylab('latitude (degree)') +
+  scale_colour_manual(values=Palette1) +
+  scale_x_continuous(breaks=seq(0, 360, 60)) +
+  scale_y_continuous(breaks=seq(-90, 90, 20)) +
+  facet_wrap(~mag_class) +
+  ggtitle("Earthquake Magnitude 7 and above since 1900")
+
+##Look at the depth of earthquakes
+ggplot(aes(y= latitude, x=long), data=ef) +
+  geom_jitter(aes(color=ef$depth_class), position="jitter", 
+              stat="identity", alpha=1/4) +
+  ylab('latitude (degree)') +
+  xlab("longitude (degree)") +
+  scale_x_continuous(breaks=seq(0, 360, 30)) +
+  scale_y_continuous(breaks=seq(-70, 75, 20)) +
+  ggtitle("Earthquake Magnitude 7 and above (Depth View) since 1900")
+
+## depth of the earthquake through different depth class
+ggplot(aes(y=latitude, x=long), data=ef) +
+  geom_jitter(aes(color=ef$depth_class), position="jitter", 
+              stat="identity", alpha=1/3) +
+  xlab("longitude (degree)") +
+  scale_x_continuous(breaks=seq(0, 360, 60)) +
+  scale_y_continuous(breaks=seq(-90, 90, 30)) +
+  facet_wrap(~depth_class) +
+  ggtitle("Earthquake Magnitude 7 and above separate by depth class")
+
+```
+
+#####1) Most of earthquakes happen around on the border of the Pacific Ocean except south border. 2) It is not often to have deep (depth >= 300km) earthquake, shallow (depth < 30 km) earthquakes happen most often. 3) Most of earthquakes are class1 (7.0 <= magnitude <7.5) - class3 (magnitude < 8.5). 
+
+
+####(1) More detail analysis on magnitude and depth of epicenter and its occurrance
+##### From bivariate plots, but added in another variable to see if I can make better analyze the data.
+##### a) Year vs magnitude through depth_class
+##### b) location of earthquake distribution - mag_class
+##### c) location of earthquake distribution - depth point of view
+
+```{r echo=FALSE}
+#magnitude vs depth through depth class by month
+#Year vs magnitude through depth_class
+ggplot(aes(y= Year, x=mag), data=ef) +
+  scale_y_continuous(lim=c(1900, 2015), breaks=seq(1900, 2015, 10)) +
+  geom_point(aes(color=depth_class)) +
+  facet_wrap(~depth_class) +
+  xlab('magnitude (Richter scale)') +
+  ggtitle("Earthquakes Year vs. Magnitude of Epi Center")
+
+#location of earthquake distribution
+ggplot(aes(y= latitude, x=long), data=ef) +
+  geom_point(aes(color=mag_class), alpha =1/5) +
+  scale_x_continuous(breaks=seq(0, 360, 30)) +
+  scale_y_continuous(breaks=seq(-90, 90, 30)) +
+  xlab("longitude (degree)") +
+  ylab('latitude (degree)') +
+  scale_colour_manual(values=Palette1) +
+  ggtitle("Earthquake Magnitude 7 and above location since 1900")
+
+#location of earthquake distribution - depth point of view
+ggplot(aes(y= latitude, x=long), data=ef) +
+  geom_point(aes(color=depth_class), alpha = 1/5) +
+  scale_x_continuous(breaks=seq(0, 360, 30)) +
+  scale_y_continuous(breaks=seq(-90, 90, 30)) +
+  xlab("longitude (degree)") +
+  ylab('latitude (degree)') +
+  scale_colour_manual(values=Palette1) +
+  ggtitle("Earthquake Magnitude 7 and above location (depth) since 1900")
+
+```
+
+##### The second and third graphs helped me achieved one of the goal that I would like to complete for this project, which is recreated the graph that I got from the USGS website.  Although the two graphs are separated, it does show many similar relations.  Most of the earthquakes are around the Ring of Fire.  It is less likely to have great magnitude and epicenter is in deep class earthquakes.  Shallow and intermediate class earthquakes still occur more than deep.
+
+#### (2) Investigate magnitude and depth of Epicenter (km)
+##### Want to know if there is correlation through the comparison of magnitude and depth
+##### a) scatterplot between the magnitude and depth of epoch center (km)
+###### The mean for each magnitude is around or less than 100 km deep; linear regression line is between 50 km and 100 km.
+##### b) Magnitude vs Epi Center Depth < 70 km
+###### Surface and shallow epi center the mean is between 20 km and 30 km; linear regression line is around 25 km line.
+##### c) Magnitude vs Epoch Center Depth between 70km and 300km
+###### The mean of depth is between 100 km and 180 km, except magnitude = 8.1 which its mean depth is 240; linear regression line is from 150km at magnitude 7.0 downward to 135km at magnitude 8.3.
+##### d) Magnitude vs Epoch Center Depth >= 400 km
+###### The mean epi center is around 520 km and 560 km, except magnitude 7.4, 8.0-8.3, the depth are 460 km, and over 600 km.
+
+```{r echo=FALSE}
+# scatterplot between the magnitude and depth of epoch center (km)
+
+ggplot(aes(x= mag, y=depth), data=ef) +
+  scale_x_continuous(lim=c(7, 10), breaks=seq(7, 10, 0.2)) +
+  scale_y_continuous(lim=c(0, 680), breaks=seq(0, 680, 50)) +
+  ylab("depth (km)") +
+  xlab('magnitude (Richter scale)') +
+  geom_point(aes(color=mag_class), alpha=1/3) +
+  stat_summary(fun.y = mean, geom="line", color="#ff0099") +
+  stat_smooth(method="lm", se=FALSE, color="#234fde") +
+  ggtitle("Earthquakes Magnitude vs. Depth of Epicenter Distribution")
+
+with(ef, cor.test(mag, depth)) 
+
+# Magnitude vs Epi Center Depth < 70 km
+ggplot(aes(x= mag, y=depth), data=subset(ef, depth_class=="shallow" | depth_class == "surface")) +
+  scale_x_continuous(lim=c(7, 9.6), breaks=seq(7, 9.6, 0.2)) +
+  scale_y_continuous(lim=c(0, 70), breaks=seq(0, 70, 10)) +
+  ylab("depth (km)") +
+  xlab('magnitude (Richter scale)') +  
+  geom_point(alpha=1/3, aes(color=mag_class)) +
+  stat_summary(fun.y = mean, geom="line", color="#b72354" ) +
+  stat_smooth(method="lm", se=FALSE) +
+  ggtitle("Earthquakes Magnitude vs. Depth (< 70km) of Epi Center")
+
+with(subset(ef, depth_class=='shallow'|depth_class=='surface'), cor.test(mag, depth))
+
+# Magnitude vs Epoch Center Depth between 70km and 300km
+ggplot(aes(x= mag, y=depth), data=subset(ef, depth_class=="intermediate")) +
+  scale_x_continuous(lim=c(7, 8.6), breaks=seq(7, 8.6, 0.2)) +
+  scale_y_continuous(lim=c(60, 300), breaks=seq(60, 300, 30)) +
+  ylab("depth (km)") +
+  xlab('magnitude (Richter scale)') +  
+  geom_point(alpha=1/2, aes(color=mag_class)) +
+  stat_summary(fun.y = mean, geom="line") +
+  stat_smooth(method="lm", se=FALSE, color="#3fabc6") +
+  ggtitle("Earthquakes Magnitude vs. Intermediate Depth class of Epi Center")
+
+with(subset(ef, depth_class="intermediate"), cor.test(mag, depth))
+ 
+# Magnitude vs Epoch Center Depth >= 400 km
+ggplot(aes(x= mag, y=depth), data=subset(ef, depth_class == "deep")) +
+  scale_x_continuous(lim=c(7, 8.5), breaks=seq(7, 8.5, 0.2)) +
+  scale_y_continuous(lim=c(300, 680), breaks=seq(300, 680,40)) +
+  ylab("depth (km)") +
+  xlab('magnitude (Richter scale)') +  
+  geom_point(aes(color=mag_class)) +
+  stat_summary(fun.y = mean, geom="line", color="#be7150") +
+  stat_smooth(method="lm", se=FALSE, color="#9826fa") +
+  ggtitle("Earthquakes Magnitude vs. Depth (>= 300 km) of Epi Center")
+
+with(subset(ef, depth_class == "deep"), cor.test(mag, depth))
+
+```
+
+#####1) Most of earthquakes that is magnitude > 8.5, they are shallow earthquakes.  2) The mean depth for each depth class is: a) surface and shallow class (depth < 70 km), the epi center is between 20km and 30 km  b) intermediate class (70km <= depth < 300km) is around 100 km and 180 km c) the depth class (depth >= 300 km), most of the mean epi center is around 520 km and 560 km, but there are more exceptions in the depth class. 3) All those correlation are all closed to 0 which means it does not have direct relationship.
+
+#### (3) How earthquakes spread throught out the years and months
+##### I want to see how for the past 115 years, how earthquakes had spread out throught out each Month
+##### Year vs Month graphs:  
+###### i) from the point of depth_class
+###### ii) from the point of magnitude_class
+
+```{r echo=FALSE}
+# from the point of depth
+ggplot(aes(x= Year, y=Month), data=ef) +
+  geom_jitter(aes(color=depth_class), position="jitter", alpha=1/5) +
+  scale_x_continuous(lim=c(1900, 2015), breaks=seq(1900, 2015, 10)) +
+  scale_y_continuous(lim=c(1, 12), breaks=seq(1, 12, 1)) +
+  scale_colour_manual(values=Palette1) +
+  stat_smooth(method="lm", se=FALSE) +
+#  stat_summary(fun.y = mean, geom="line", color="#af5942") +
+  ggtitle("Earthquake Magnitude 7 and above (Depth_class) Distribution")
+
+# from the point of magnitude 
+ggplot(aes(x= Year, y=Month), data=ef) +
+  geom_jitter(aes(color=mag_class), position="jitter", alpha=1/5) +
+  scale_x_continuous(lim=c(1900, 2015), breaks=seq(1900, 2015, 10)) +
+  scale_y_continuous(lim=c(1, 12), breaks=seq(1, 12, 1)) +
+  stat_smooth(method="lm", se=FALSE) +
+#  stat_summary(fun.y = mean, geom="line", color="#ed836b") +
+  scale_colour_manual(values=Palette1) +
+  ggtitle("Earthquake Magnitude 7 and above (Mag_class) Distribution")
+
+```
+
+##### It looks there were less reported earthquakes before 1920s, and it looks like there were less earthquakes in 1950s (1950-1959). Most of earthquake still in class1 and class 2, and shallow class epicenter. It shows that large earthquakes happened all the decades and any month in the year.  The linear regression line is between the month of June and July.  No direct relations among earthquakes and time of years and months. 
+
+#### (4) Occurance of earthquake through different combination view of mag_class, depth_class, longitude, latitude, magnitude, and depth.
+##### Again, I want to see if the occurrances of earthquakes can help to make more sense on magnitude-depth-location relation.
+
+```{r echo=FALSE}
+# how occurance of each mag_class and its depth are related
+ggplot(aes(x=mag_class, y=depth), data=ef) +
+  geom_jitter(aes(color=depth_class), position="jitter", alpha=1/2) +
+  scale_y_continuous(lim=c(0, 700), breaks=seq(0, 700, 100)) +
+  ylab('depth (km)') +
+  ggtitle("Magnitude class vs Depth Distribution")
+
+# occurance of each earthquake are related to longitude and its magnitude are spread out - from depth point of view
+ggplot(aes(x=long, y=mag), data=ef) +
+  geom_point(aes(color=depth_class), alpha=1/4) +
+  scale_x_continuous(lim=c(0, 360), breaks=seq(0, 360, 60)) +
+  scale_y_continuous(lim=c(7, 9.6), breaks=seq(7, 9.6, 0.5)) +
+  xlab('Longitude (degree)') +
+  ylab('magnitude (Richter scale)') +
+  scale_colour_manual(values=Palette1) +
+  facet_wrap(~depth_class) +
+  ggtitle('Magnitude vs Longitude Variation')
+
+# occurance of each earthquake are related to longitude and its depth are spread out - from magnitude_class point of view
+ggplot(aes(x=long, y=depth), data=ef) +
+  geom_point(aes(color=mag_class), alpha=1/4) +
+  scale_x_continuous(lim=c(0, 360), breaks=seq(0, 360, 60)) +
+  scale_y_continuous(lim=c(0, 700), breaks=seq(0, 700, 100)) +
+  xlab('Longitude (degree)') +
+  ylab('depth (km)') +
+  scale_colour_manual(values=Palette1) +
+  facet_wrap(~mag_class) +
+  ggtitle('Depth vs Longitude Variation')
+
+# occurance of each earthquake are related to latitude and its depth are spread out - from depth_class point of view
+ggplot(aes(y=latitude, x=mag), data=ef) +
+  geom_point(aes(color=depth_class), alpha=1/3) +
+  xlab("magnitude (Richter scale)") +
+  ylab('latitude (degree)') +
+  scale_y_continuous(lim=c(-70, 75), breaks=seq(-70,75, 20)) +
+  scale_x_continuous(lim=c(7,9.6), breaks=seq(7,9.6, 0.5)) +
+  facet_wrap(~depth_class) +
+  ggtitle('Magnitude vs Latitude Variation')
+
+# occurance of each earthquake are related to latitude and its depth are spread out - from magnitude_class point of view
+ggplot(aes(y=latitude, x=depth), data=ef) +
+  geom_point(aes(color=mag_class), alpha=1/3) +
+  scale_y_continuous(lim=c(-70, 75), breaks=seq(-70, 75, 30)) +
+  scale_x_continuous(lim=c(0, 700), breaks=seq(0, 700, 125)) +
+  xlab('depth (km)') +
+  ylab('latitude (degree)') +
+  facet_wrap(~mag_class) +
+  ggtitle('Depth vs Latitude Variation')
+```
+
+##### Clearly that for class4 and higher, they were all shallow earthquakes.  Even for class3 it rarely had deep class earthquakes and less likely to have intermediate class earthquakes.  When I looked at depth vs longitude and depth vs latitude graphs how epicenter spread out through each magnitude class, the distribution of class1 (magnitude < 7.5) and class2 (78.5 <= magnitude < 8) is similar.
+
+
+#### (5) Look at how earthquakes spread out for each hemisphere by investigated a)magnitude,  b)depth
+##### I saw the big picture how earthquakes spread through the all longitudes and latitudes display. Now I want to focus on how earthquakes spread out throught different hemisphere.
+##### 1) East hemisphere vs West hemisphere 
+##### 2) North hemisphere vs South hemisphere
+
+```{r echo=FALSE}
+## East hemisphere vs West hemisphere
+
+### mag_class point of view
+
+ggplot(aes(x=long_class, y=latitude), data=ef) +
+  geom_jitter(aes(color=mag_class), position="jitter", alpha=1/4) +
+  ylab('latitude (degree)') +
+  scale_colour_manual(values=Palette1) +
+  scale_y_continuous(lim=c(-70,75), breaks=seq(-70,75,20)) +
+  ggtitle('East hemisphere vs West hemisphere Distribution (Magnitude)')
+
+### depth_class point of view
+ggplot(aes(x=long_class, y=latitude), data=ef) +
+  geom_jitter(aes(color=depth_class), position="jitter", alpha=1/4) +
+  ylab('latitude (degree)') +
+  scale_y_continuous(lim=c(-70,75), breaks=seq(-70,75,20)) +
+  scale_colour_manual(values=Palette1) +
+  ggtitle('East hemisphere vs West hemisphere Distribution (Depth)')
+
+## North hemisphere vs South hemisphere
+
+### mag_class point of view
+ggplot(aes(x=long, y=lat_class), data=ef) +
+  geom_jitter(aes(color=mag_class), position="jitter", alpha=1/4) +
+  xlab("longitude (degree)") +
+  scale_x_continuous(breaks=seq(0, 360,30)) +
+  scale_colour_manual(values=Palette1) +
+  ggtitle('North hemisphere vs South hemisphere Distribution (Magnitude)')
+
+### depth_class point of view
+ggplot(aes(x=long, y=lat_class), data=ef) +
+  geom_jitter(aes(color=depth_class), position="jitter", alpha=1/4) +
+  xlab("longitude (degree)") +
+  scale_colour_manual(values=Palette1) +
+  scale_x_continuous(breaks=seq(0, 360,30)) +
+  ggtitle('North hemisphere vs South hemisphere Distribution  (Depth)')
+
+```
+
+##### Most of East hemisphere earthquake is above -30 degree latitude area (-30 to 60);  West hemisphere earthquakes are more widely spread, but it shows more around -40 to 20 degree latitude area.
+##### Most southern hemisphere earthquakes were focused around 120 to 190 degree and 280 to 300 degree longitude area; the concentrated area was 150 to 190 degree, and 280 and 300 degree area.  Northern hemisphere's earthquakes were widely spread across all longitudes area, but it showed concentration around 120 and 165 degree.  For southern hemisphere, it showed less likely to have earthquakes that were between 0 and 30 degree longitude and 195 and 270 degree longitude.
+
+#### (6) Scatterplot Matrix Analysis for each hemisphere
+##### When I investigated all the individual, bivariate, and multivariate graphs, I can see if there is any direct relation among the variables.  When I want to see the big picture for comparison, scatterplot matrix seemed a good fit to see the relation.
+##### Each matrix show each hemisphere analysis for different fields.  For each hemisphere, the most significant relation are all the line graphs on the diagonal line that can be put on top of certain scatterplots.  For example: latitude-depth, longitude-depth, depth-magnitude.
+
+```{r echo=FALSE}
+#East Hemisphere
+dE <- subset(ef, ef$long_class == 'EastH')
+gE <- ggpairs(dE[, c(2, 25, 4, 5)], 
+              title="East Hemisphere Comparison",
+              params=list(corSize=6)) +
+  theme(axis.text = element_text(color="blue", size=6)) +
+  theme(plot.title = element_text(color='brown', size=6))
+gE
+
+#West Hemisphere
+dW <- subset(ef, ef$long_class == 'WestH')
+gW <- ggpairs(dW[, c(2, 25, 4,5)],
+              title="West Hemisphere Comparison",
+              params=list(corSize=6)) +
+  theme(axis.text = element_text(color="blue", size=6)) +
+  theme(plot.title = element_text(color='brown', size=6))
+gW 
+
+#North Hemisphere
+dN <- subset(ef, ef$lat_class == 'NorthH')
+gN <- ggpairs(dN[, c(2, 25, 4,5)], 
+              title="North Hemisphere Comparison",
+              params=list(corSize=6)) +
+  theme(axis.text = element_text(color="blue", size=6)) +
+  theme(plot.title = element_text(color='brown', size=6))
+gN
+
+#South Hemisphere
+dS <- subset(ef, ef$lat_class == 'SouthH')
+gS <- ggpairs(dS[, c(2, 25, 4,5)], 
+              title="South Hemisphere Comparison",
+              params=list(corSize=8)) +
+  theme(axis.text = element_text(color="blue", size=6)) +
+  theme(plot.title = element_text(color='brown', size=8))
+gS
+```
+
+##### It is really hard to find direct relation between latitude and other variables.  But when I looked at different hemispheres for longitude and depth, it seemed I can put the line graph directly on (long, depth) and (depth, mag) graph directly.  Although all the correlation values are closer to zero, the following correlation values are farther away from zero: the south hemisphere [(long, latitude), -0.491], west hemisphere [(long, latitude), -0.264], and east hemisphere [(long, latitude), -0.327].  South hemisphere's correlation shows the strongest among all hemispheres, and it means if there is an earthquake in the south hemisphere, it is more likely to have 50% chance to predict correctly if either longitude or latitude is known.
+
+#### (7) Mean/median analysis - Hour, Month, and Year/Decade
+##### I want to see if using conditional means and grouping can help analyze the data on the time variables
+
+##### (i) Investigate Hour with Magnitude Mean/Median
+
+```{r echo=FALSE}
+hour_group <- ef %>%
+  group_by(Hour) %>%
+  summarize(hours_mean = mean(mag),
+            hours_median = median(mag),
+            n = n()) %>%
+  arrange(Hour)
+
+ggplot(aes(x=factor(Hour), y=hours_mean), data=hour_group) +
+  geom_boxplot(aes(color=hours_median)) +
+  coord_cartesian(ylim=c(7.25,7.5)) +
+  xlab('Hour') +
+  ggtitle("Hours vs Hour_mean and Hour_median for earthquake magnitude")
+
+ggplot(aes(x=factor(Hour), y=mag), data=ef) +
+  geom_boxplot(notch=FALSE) +
+  xlab('Hour') +
+  ylab('magnitude (Richter scale)') +
+  scale_y_continuous(lim=c(7, 7.7), breaks=seq(7, 7.7, 0.1)) +
+  stat_summary(fun.y="mean", geom="point", shape=20, size=4, fill="blue") +
+  ggtitle("Earthquake magnitude mean for each hour 1900-2015(April)")
+
+```
+
+##### When used conditional mean, the hours_mean was around magnitude 7.3 and 7.4, except for hour 5 and hour 7; and without it, the mean range was around magnitude 7.2 and 7.3.
+
+##### (ii) Investigate Month with Magnitude Mean/Median
+
+```{r echo=FALSE}
+month_group <- ef %>%
+  group_by(Month) %>%
+  summarize(month_mean = mean(mag),
+            month_median = median(mag),
+            n = n()) %>%
+  arrange(Month)
+
+ggplot(aes(x=factor(Month), y=month_mean), data=month_group) +
+  geom_boxplot(aes(color=month_median)) +
+  coord_cartesian(ylim=c(7.25,7.45)) +
+  xlab('Month') +
+  ylab('magnitude (Richter scale)') +
+  ggtitle("Month vs Month_mean for earthquake magnitude")
+
+ggplot(aes(x=factor(Month), y=mag), data=ef) +
+  geom_boxplot(notch=FALSE) +
+  xlab('Month') +
+  ylab('magnitude (Richter scale)') +
+  scale_y_continuous(lim=c(7, 7.8), breaks=seq(7, 7.8, 0.1)) +
+  stat_summary(fun.y="mean", geom="point", shape=15, size=3, fill="green") +
+  ggtitle("Earthquake magnitude mean for each month 1900-2015(April)")
+
+```
+
+##### Again, when used conditional mean, the month_mean was around magnitude 7.3 and 7.4; and without it, the mean range was around magnitude 7.2 and 7.3.
+
+#### (iii) Investigate decade with Magnitude Mean/Median
+
+```{r echo=FALSE}
+decade_group <- ef %>%
+  group_by(decade) %>%
+  summarize(decade_mean = mean(mag),
+            decade_median = median(mag),
+            n = n()) %>%
+  arrange(decade)
+
+ggplot(aes(x=decade, y=decade_mean), data=decade_group) +
+  geom_boxplot(aes(color=decade_median)) +
+  coord_cartesian(ylim=c(7.2,7.7)) +
+  theme(legend.position="right") +
+  ggtitle("Decade vs Decade_mean for earthquake magnitude")
+
+#ggplot(aes(x=decade, y=mag), data=ef) +
+#  geom_boxplot(notch=FALSE) +
+#  ylab('magnitude (Richter scale)') +
+#  scale_y_continuous(lim=c(7, 7.8), breaks=seq(7, 7.8, 0.1)) +
+#  stat_summary(fun.y="mean", geom="point", shape=15, size=3, fill="red") +
+#  ggtitle("Earthquake magnitude mean for each decade 1900-2015(April)")
+```
+
+##### When used conditional mean, the decade_mean was around magnitude 7.3 and 7.4, except for decades: 1910s, 1920s, and 1980s; and without it, the mean range was around magnitude 7.2 and 7.3, except 1910s and 1920s.
+
+
+#### (8) Focus on the [80<longitude<300,-70<latitude<75] location of the earthquake only
+##### Since the earthquakes spreaded out widely around the world, now I want to focus on the area along the "Ring of Fire". Again, I will investigate through different hemisphere in the given range, from mag_class, depth_class, and time perspective.
+
+```{r echo=FALSE}
+#Focus on the [80<longitude<300,-70<latitude<75] location of the earthquake only
+ggplot(aes(y = latitude, x=long), data=subset(ef, long_class='WestH')) +
+  geom_point(aes(color=ef$Hour), size=2, alpha=1/2) +
+  scale_shape(solid = FALSE) +
+  xlab("longitude (degree)") +
+  ylab('latitude (degree)') +
+  theme(legend.position="right") +
+  scale_x_continuous(lim=c(180, 300), breaks=seq(180, 300, 15)) +
+  scale_y_continuous(lim=c(-70, 75), breaks=seq(-70, 75, 15)) +
+  ggtitle("West hemisphere Location vs Hour")
+
+ggplot(aes(y = latitude, x=long), data=subset(ef, long_class='WestH')) +
+  geom_point(aes(shape=ef$mag_class), size=2) +
+  scale_shape(solid = FALSE) +
+  xlab("longitude (degree)") +
+  ylab('latitude (degree)') +
+  theme(legend.position="right") +
+  scale_x_continuous(lim=c(180, 300), breaks=seq(180, 300, 15)) +
+  scale_y_continuous(lim=c(-70, 75),breaks=seq(-70, 75, 15)) +
+  ggtitle("West hemisphere Location vs Magnitude_class")
+
+ggplot(aes(y = latitude, x=long), data=subset(ef, long_class='EastH')) +
+  geom_point(aes(color=ef$Hour), size=2, alpha=1/3) +
+  scale_shape(solid = FALSE) +
+  xlab("longitude (degree)") +
+  ylab('latitude (degree)') +
+  theme(legend.position="right") +
+  scale_x_continuous(lim=c(80, 180), breaks=seq(80, 180, 15)) +
+  scale_y_continuous(lim=c(-70, 75), breaks=seq(-70, 75, 15)) +
+  ggtitle("East hemisphere epicenter location vs Hour")
+
+ggplot(aes(y = latitude, x=long), data=subset(ef, long_class='EastH')) +
+  geom_point(aes(shape=ef$mag_class), size=2) +
+  scale_shape(solid = FALSE) +
+  xlab("longitude (degree)") +
+  ylab('latitude (degree)') +
+  theme(legend.position="right") +
+  scale_x_continuous(lim=c(80, 180), breaks=seq(80, 180, 15)) +
+  scale_y_continuous(lim=c(-70, 75), breaks=seq(-70, 75, 10)) +
+  ggtitle("East hemisphere epicenter location vs Magnitude_class")
+```
+
+##### After narrow down the area, it showed certain area had earthquakes more than the other.
+
+#### (9) Focus even more smaller area 
+##### I want to see if I can have more detail look through smaller and condense area in the "Ring of Fire".
+##### East hemisphere - Focus on 90 <= longitude <=170, -30<=latitude <=60
+##### West hemisphere - Focus on 255 <= longitude <=300, -55<=latitude <=20
+
+```{r echo=FALSE}
+ggplot(aes(y = latitude, x=long), data=subset(ef, long_class='WestH')) +
+  geom_point(aes(color=ef$Hour, shape=mag_class), size=2, alpha=1/2) +
+  scale_shape(solid = FALSE) +
+  xlab("longitude (degree)") +
+  ylab('latitude (degree)') +
+  theme(legend.position="bottom") +
+  scale_x_continuous(lim=c(255, 300), breaks=seq(255, 300, 5)) +
+  scale_y_continuous(lim=c(-55, 20), breaks=seq(-55, 20, 10)) +
+  ggtitle("West hemisphere Location vs Hour")
+
+ggplot(aes(y = latitude, x=long), data=subset(ef, long_class='WestH')) +
+  geom_point(aes(shape=ef$mag_class, color=depth_class), size=2) +
+  scale_shape(solid = FALSE) +
+  xlab("longitude (degree)") +
+  ylab('latitude (degree)') +
+  theme(legend.position="right") +
+  scale_x_continuous(lim=c(255, 300), breaks=seq(255, 300, 5)) +
+  scale_y_continuous(lim=c(-55, 20), breaks=seq(-55, 20, 10)) +
+  ggtitle("West hemisphere Location vs Magnitude_class")
+
+ggplot(aes(y = latitude, x=long), data=subset(ef, long_class='EastH')) +
+  geom_point(aes(color=ef$Hour, shape=mag_class), size=2, alpha=1/2) +
+  scale_shape(solid = FALSE) +
+  xlab("longitude (degree)") +
+  ylab('latitude (degree)') +
+  theme(legend.position="bottom") +
+  scale_x_continuous(lim=c(90, 170), breaks=seq(90, 170, 15)) +
+  scale_y_continuous(lim=c(-30, 60), breaks=seq(-30, 60, 10)) +
+  ggtitle("East hemisphere epicenter location vs Hour")
+
+ggplot(aes(y = latitude, x=long), data=subset(ef, long_class='EastH')) +
+  geom_point(aes(shape=ef$mag_class, color=depth_class), size=2, alpha=1/2) +
+  scale_shape(solid = FALSE) +
+  xlab("longitude (degree)") +
+  ylab('latitude (degree)') +
+  theme(legend.position="bottom") +
+  scale_x_continuous(lim=c(90, 170), breaks=seq(90, 170, 15)) +
+  scale_y_continuous(lim=c(-30, 60), breaks=seq(-30, 60, 10)) +
+  ggtitle("East hemisphere epicenter location vs Magnitude_class")
+```
+
+##### After narrow down even more, it showed more clear how epicenter distributed.  Eastern hemisphere showed lots more epicenter than western hemisphere.
+
+#### (10) Focus on each quadrant
+##### Previous several graphs, it focus on smaller area or different hemispheres.  Now I want to see how epicenter distributed across from each quadrant.
+##### Each quadrant will include: i) from mag_class; ii) from depth_class point of view.
+##### (a) Q1 - 180 < longitude < 360 & 0 < latitude < 90
+##### (b) Q2 - 0 < longitude < 180 & 0 < latitude < 90
+##### (c) Q3 - 0 < longitude < 180 & -90 < latitude < 0
+##### (d) Q4 - 180 < longitude < 360 & -90 < latitude < 0
+
+```{r echo=FALSE}
+## Q1 - North hemisphere and West hemisphere
+## linear regression line is negative (latitude 55 degree down to 0 degree )
+
+Q1 <- subset(ef, lat_class == "NorthH" & long_class == "WestH")
+
+#### mag_class view
+ggplot(aes(x= long, y=latitude), data=Q1) +
+  scale_x_continuous(lim=c(180, 360), breaks=seq(180, 360, 15)) +
+  scale_y_continuous(lim=c(0, 75), breaks=seq(0, 75, 10)) +
+  ylab("latitude (degree)") +
+  xlab('longitude (degree)') +
+  geom_point(aes(color=mag_class), size=2, alpha=1/3) +
+  stat_summary(fun.y = mean, geom="line", color="gray") +
+  scale_colour_manual(values=Palette1) +
+  stat_smooth(method="lm", se=FALSE, color="#fd234e") +
+  ggtitle("Epicenter Distribution in the Q1 (North & West hemispheres)")
+
+#### depth_class view
+ggplot(aes(x= long, y=latitude), data=Q1) +
+  scale_x_continuous(lim=c(180, 360), breaks=seq(180, 360, 15)) +
+  scale_y_continuous(lim=c(0, 75), breaks=seq(0, 75, 10)) +
+  ylab("latitude (degree)") +
+  xlab('longitude (degree)') +
+  geom_point(aes(shape=depth_class), size=2, color="brown") +
+  scale_shape(solid=FALSE) +
+  stat_summary(fun.y = mean, geom="line", color="yellow") +
+  stat_smooth(method="lm", se=FALSE, color="#234fde") +
+  ggtitle("Epicenter Distribution in the Q1 (North & West hemispheres)")
+
+with(Q1, cor.test(mag, depth))
+
+## Q2 - North hemisphere and East hemisphere
+### linear regression line is positive (latitude - 20 degree to 35 degree)
+Q2 <- subset(ef, lat_class == "NorthH" & long_class == "EastH")
+#### mag_class view
+ggplot(aes(x= long, y=latitude), data=Q2) +
+  scale_x_continuous(lim=c(0, 180), breaks=seq(0, 180, 15)) +
+  scale_y_continuous(lim=c(0, 70), breaks=seq(0, 70, 10)) +
+  ylab("latitude (degree)") +
+  xlab('longitude (degree)') +
+  geom_point(aes(color=mag_class), size=2, alpha=1/5) +
+#  stat_summary(fun.y = mean, geom="line", color="gray") +
+  scale_colour_manual(values=Palette1) +
+  stat_smooth(method="lm", se=FALSE, color="#fd234e") +
+  ggtitle("Epicenter Distribution in the Q2 (North & East hemispheres)")
+
+#### depth_class view
+
+ggplot(aes(x= long, y=latitude), data=Q2) +
+  scale_x_continuous(lim=c(0, 180), breaks=seq(0, 180, 15)) +
+  scale_y_continuous(lim=c(0, 70), breaks=seq(0, 70, 10)) +
+  ylab("latitude (degree)") +
+  xlab('longitude (degree)') +
+  geom_point(aes(shape=depth_class), size=2, color="brown", alpha=1/7) +
+  scale_shape(solid=FALSE) +
+#  stat_summary(fun.y = mean, geom="line", color="yellow") +
+  stat_smooth(method="lm", se=FALSE, color="#234fde") +
+  ggtitle("Epicenter Distribution in the Q2 (North & East hemispheres)")
+
+with(Q2, cor.test(mag, depth))
+
+## Q3 - South hemisphere and East hemisphere
+#### linear regression line is negative (latitude - 0 degree down to 18 degree)
+Q3 <- subset(ef, lat_class == "SouthH" & long_class == "EastH")
+#### mag_class view
+ggplot(aes(x= long, y=latitude), data=Q3) +
+  scale_x_continuous(lim=c(0, 180), breaks=seq(0, 180, 15)) +
+  scale_y_continuous(lim=c(-70, 0), breaks=seq(-70, 0, 10)) +
+  ylab("latitude (degree)") +
+  xlab('longitude (degree)') +
+  geom_point(aes(color=mag_class), size=2, alpha=1/4) +
+#  stat_summary(fun.y = mean, geom="line", color="gray") +
+  scale_colour_manual(values=Palette1) +
+  stat_smooth(method="lm", se=FALSE, color="#fd234e") +
+  ggtitle("Epicenter Distribution in the Q3 (South & East hemispheres)")
+
+#### depth_class view
+ggplot(aes(x= long, y=latitude), data=Q3) +
+  scale_x_continuous(lim=c(0, 180), breaks=seq(0, 180, 15)) +
+  scale_y_continuous(lim=c(-70, 0), breaks=seq(-70, 0, 10)) +
+  ylab("latitude (degree)") +
+  xlab('longitude (degree)') +
+  geom_point(aes(shape=depth_class), size=2, color="brown", alpha=1/5) +
+  scale_shape(solid=FALSE) +
+  #stat_summary(fun.y = mean, geom="line", color="yellow") +
+  stat_smooth(method="lm", se=FALSE, color="#234fde") +
+  ggtitle("Epicenter Distribution in the Q3 (South & East hemispheres)")
+
+with(Q3, cor.test(mag, depth))
+
+## Q4 - South hemisphere and West hemisphere
+#### linear regression is negative (latitude - -20 degree to -35 degree)
+Q4 <- subset(ef, lat_class == "SouthH" & long_class == "WestH")
+#### mag_class view
+ggplot(aes(x= long, y=latitude), data=Q4) +
+  scale_x_continuous(lim=c(180, 360), breaks=seq(180, 360, 15)) +
+  scale_y_continuous(lim=c(-70, 0), breaks=seq(-70, 0, 10)) +
+  ylab("latitude (degree)") +
+  xlab('longitude (degree)') +
+  geom_point(aes(color=mag_class), size=2, alpha=1/4) +
+#  stat_summary(fun.y = mean, geom="line", color="gray") +
+  scale_colour_manual(values=Palette1) +
+  stat_smooth(method="lm", se=FALSE, color="#fd234e") +
+  ggtitle("Epicenter Distribution in the Q4 (South & West hemispheres)")
+
+#### depth_class view
+
+ggplot(aes(x= long, y=latitude), data=Q4) +
+  scale_x_continuous(lim=c(180, 360), breaks=seq(180, 360, 15)) +
+  scale_y_continuous(lim=c(-70, 0), breaks=seq(-70, 0, 10)) +
+  ylab("latitude (degree)") +
+  xlab('longitude (degree)') +
+  geom_point(aes(shape=depth_class), size=2, color="brown", alpha=1/4) +
+  scale_shape(solid=FALSE) +
+  #stat_summary(fun.y = mean, geom="line", color="yellow") +
+  stat_smooth(method="lm", se=FALSE, color="#234fde") +
+  ggtitle("Epicenter Distribution in the Q4 (South & West hemispheres)")
+
+with(Q4, cor.test(mag, depth))
+```
+
+##### For Q1 (North hemisphere and West hemisphere), the linear regression line is negative (latitude 55 degree down to 0 degree).  For Q2 (North hemisphere and East hemisphere), the linear regression line is positive (latitude - 20 degree to 35 degree).  For Q3 (South hemisphere and East hemisphere), the linear regression line is negative (latitude - 0 degree down to 18 degree)For Q4 (South hemisphere and West hemisphere), the linear regression is negative (latitude - -20 degree to -35 degree).  Q2 is the only quadrant that has positive linear model line.
+
+#### (11) Investigate the data that is difference among the Richter magnitude scale
+##### Richter magnitude scale was defined in 1935, and widely used after 1970.  The graphs here shows how the earthquake spread out: 1)before 1935; 2) Between 1935 and 1970; 3)After 1970. (Extension from bivariate analysis #3, see more detail through different magnitudes)
+
+```{r echo=FALSE}
+#Before 1935
+ggplot(aes(y = latitude, x=long), data=subset(ef, Year < 1935)) +
+  geom_point(aes(color=mag_class), alpha=1/2) +
+  xlab("longitude (degree)") +
+  ylab('latitude (degree)') +
+  theme(legend.position="right") +
+  scale_colour_manual(values=Palette1) +
+  scale_x_continuous(lim=c(0, 360), breaks=seq(0, 360, 30)) +
+  scale_y_continuous(lim=c(-75, 75), breaks=seq(-75, 75, 15)) +
+  ggtitle("Earthquake location that happened before 1935")
+
+#Between 1935 and 1970
+ggplot(aes(y = latitude, x=long), 
+       data=subset(ef, Year >= 1935 & Year < 1970 )) +
+  geom_point(aes(color=mag_class), alpha=1/3) +
+  xlab("longitude (degree)") +
+  ylab('latitude (degree)') +
+  theme(legend.position="right") +
+  scale_colour_manual(values=Palette1) +
+  scale_x_continuous(lim=c(0, 360), breaks=seq(0, 360, 30)) +
+  scale_y_continuous(lim=c(-75, 75), breaks=seq(-75, 75, 15)) +
+  ggtitle("Earthquake location that happened between 1935 and 1970")
+
+#After 1970
+ggplot(aes(y = latitude, x=long), data=subset(ef, Year >= 1970)) +
+  geom_point(aes(color=mag_class), alpha=1/4) +
+  xlab("longitude (degree)") +
+  ylab('latitude (degree)') +
+  theme(legend.position="right") +
+  scale_colour_manual(values=Palette1) +
+  scale_x_continuous(lim=c(0, 360), breaks=seq(0, 360, 30)) +
+  scale_y_continuous(lim=c(-75, 75), breaks=seq(-75, 75, 15)) +
+  ggtitle("Earthquake location that happened after 1970")
+
+```
+
+#####------------------------------------
+
+## Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. Were there features that strengthened each other in terms of looking at your feature(s) of interest?
+
+##### From the bivariate analysis, I already know that most of earthquakes happened around the "Ring of Fire".  here, I separated the latitude and longitude, and I wanted to know if certain latitude or longitude happened more than others.  From the depth of the epicenter, the longitude between 90 and 190, and 260 and 300, there were lots of occurrences of earthquakes.  Among them, longitude between 100 and 180, and 280 and 300 had more deep earthquakes.  When I checked the map of the earth, the longitude is the international dateline, and it is located in the middle of Pacific Ocean.
+
+### Were there any interesting or surprising interactions between features?
+
+#####The distribution of the earthquakes for magnitude class and depth class are similar.  Although most of the earthquakes are either shallow or intermediate, there were a few exceptions with magnitude around 7, but whose depth belong to "deep" class.  It looks like Europe or Africa do not have a lot of large earthquakes (magnitude 7 and higher) compared to Asia and America. The exception that happened a lot and does not belong to the "Ring of Fire" is Afghanistan, and the area that goes through border of Europe.  North hemisphere has more large earthquakes than south hemisphere, and east hemisphere has more than twice that of west hemisphere.
+
+### OPTIONAL: Did you create any models with your dataset? Discuss the strengths and limitations of your model.
+
+#####------------------------------------
+
+## Final Plots and Summary
+
+### Plot One
+```{r echo=FALSE, Plot_One}
+ggplot(aes(y= latitude, x=long), data=ef) +
+  geom_point(aes(color=mag_class), alpha=1/3) +
+  xlab("Longitude (degree)") +
+  ylab("Latitude (degree)") +
+  scale_x_continuous(lim=c(0, 360), breaks=seq(0, 360, 60)) +
+  scale_y_continuous(lim=c(-70, 75), breaks=seq(-70, 75, 20)) +
+  scale_colour_manual(values=Palette1) +
+  facet_wrap(~depth_class) +
+  ggtitle("Global Earthquake Magnitude 7 and above 1900 - 2015 (April)")
+
+```
+
+### Description One
+
+##### It shows most of earquakes around the Ring of Fire.  Most class 1 earthquakes (magnitude > 7.5) are shallow earthquakes.  Also for magnitude >= 7.0 earthquakes, high magnitude earthquakes are less likely to happen.  It is less likely to have magnitude more than 8.0.  It shows that the right side of the "Ring of Fire" has fewer deep eathquakes than the left side of the ring.  And most deep earthquakes are around the ocean area especially on the left side of the ring.  
+##### It is less likely to have large earthquakes in Europe or Africa areas. Continent Asia had more earthquakes than North and South America.
+##### From this graph, we can also tell that the area around the Pacific Ocean has more earthquakes than the Indian or Atlantic Ocean.
+##### Most of the deep class earthquakes are in the longitude range 100 to 180 degree and 280 to 300 degree.  It's not like the shallow or intermdiate class that are widely spread throughout all longitudes.
+##### It is less likely to have magnitude 7 or higher earthquakes that belong to intermediate or deep class inside of Arctic Circle  (66°33′45.7″ north of the Equator) or Antarctic Circle (66°33′45.8″ south of the Equator).
+
+#####------------------------------------
+
+### Plot Two
+
+```{r echo=FALSE, Plot_Two}
+p1 <- ggplot(aes(x=decade, y=mag), data=ef) +
+  geom_boxplot(notch=FALSE) +
+  ylab('magnitude') +
+  xlab('Decade (year)') +
+  scale_y_continuous(lim=c(7, 7.8), breaks=seq(7, 7.8, 0.2)) +
+  stat_summary(fun.y="mean", geom="point", shape=23, size=3, fill="pink") +
+  ggtitle("Earthquake magnitude mean for each decade 1900-2015(April)")
+
+p2 <- ggplot(aes(x=factor(Month), y=mag), data=ef) +
+  geom_boxplot(notch=FALSE) +
+  ylab('magnitude') +
+  xlab('Month') +
+  scale_y_continuous(lim=c(7, 7.8), breaks=seq(7, 7.8, 0.2)) +
+  stat_summary(fun.y="mean", geom="point", shape=23, size=3, fill="green") +
+  ggtitle("Earthquake magnitude mean for each month 1900-2015(April)")
+
+p3 <- ggplot(aes(x=factor(Hour), y=mag), data=ef) +
+  geom_boxplot(notch=FALSE) +
+  ylab('magnitude') +
+  xlab('Hour') +
+  scale_y_continuous(lim=c(7, 7.8), breaks=seq(7, 7.8, 0.2)) +
+  stat_summary(fun.y="mean", geom="point", shape=23, size=3, fill="brown") +
+  ggtitle("Earthquake magnitude mean for each hour 1900-2015(April)")
+
+grid.arrange(p1, p2, p3, ncol=1)
+
+```
+
+### Description Two
+
+##### These 3 graphs helped me solve the following questions that I had when I started this project for earthquakes of magnitude 7 or higher since 1900:
+<ul>
+<li>Which decade has the largest earthquake? - 1960s (9.6) </li>
+<li>Which decade has the most earthquake? - 1990s (155)   </li>
+<li>Which decade has the highest median earthquake? - 1900 (7.70) </li>
+<li>Which decade has the highest mean earthquake? - 1900 (7.70) </li>
+<li>Which month has the highest mean earthquake? - December (7.414) </li>
+<li>Which month has the highest median earthquake? - September (7.4) </li>
+<li>Which month has the most amount of earthquake? - November (129) </li>
+<li>Which month has the least amount of earthquake? - September (90) </li>
+<li>Which hour has the highest median erthquake? - Hour 23 (7.4)  </li>
+<li>Which hour has the highest mean erthquake? - Hour 5 (7.46)  </li>
+<li>Which hour has the most amount of earthquake? - Hour 14 (68) </li>
+<li>Which hour has the least amount of earthquake? - Hour 23 (42) </li>
+
+<li>When look through the mean and median comparison, most of mean is above or on the median line for decade, Month, and hour graphs, except 1900s and Hour 23.  On the Month of May, its median is also same as its first quartile.</li>
+<li>Since most of the third quartile is less than magnitude 7.6, so I can conclude that there is less than 25% chance to have magnitude 8.0 or higher earthquakes anytime. According to the Wikipedia, for magnitude 8.0 - 8.9, it estimated once per year, and 9.0 and higer, one per 10 to 50 years, and no like magnitude 7.0 - 7.9, it estimated average 10 to 20 per year. </li>
+</ul>
+##### It also showed me how the distribution of all those earthquakes is spread out through the years, months, and hours. Although to determine if it might related to the phase of the moon, we need to know the local time.  In this dataset, the time is UTC (Coordinated Universal Time), and it does not show any time zone in this dataset.
+
+#####------------------------------------
+### Plot Three
+
+```{r echo=FALSE, Plot_Three}
+gA <- ggpairs(ef[, c(2, 25, 4, 5)], 
+              title="World Comparison",
+              #params = c(binwidth=0.1),
+              params = list(corSize=8),
+              alpha=1/5, 
+              color=ef$mag,
+              diag=list(continuous="density", discrete="bar"),
+              axisLabels="show") +
+    theme(axis.text = element_text(color="blue", size=6)) 
+
+gA
+
+```
+
+### Description Three
+
+<ol>
+<li> When looking at the correlation values, it seems none of the fields are related to each other since the correlation values are almost 0. </li> 
+<li> When I look at the (latitude, long) graph, it looks like the ring of fire in its reverse side way, which is similar to plot 1 that shows most of the earthquakes area. </li>
+<li> When I look at (long, depth) and (long, mag) graphs, it looks like I can put the curve line on top of those 2 graphs and shows a few outliers on longitude is 200 and depth is more than 400.  It also shows that a lot of magnitude between 7 and 8 earthquakes happened in the longitude between the 100 to 200 degree area. </li>
+<li> Depth column shows most of earthquakes belong to shallow class, even through out all magnitudes. </li>
+</ol>
+
+#####---------------------------
+# Reflection
+=======================
+
+<ul> When I started this project, these are some of questions that I want to answer:
+<li>Which decades had the largest and most earthquakes since 1900? </li>
+<li>Which area had the most amount of earthquakes since 1900? </li>
+<li>Is there any relation between magnitude and depth of the epicenter? </li>
+<li>Which month has the most amount of earthquakes since 1900?  (Maybe it related to the gravity of Moon and Sun?) </li>
+<li>Possible the relationship between magType and magnitude? </li>
+I wasn't even know if I can draw any conclusion at all.  Because people cannot really control when and where earthquake to happen, also it is hard to tell that if there is a large earthquake in Japen, and few days later, there is aother large earthquake in China or in the Java Sea.  We cannot really conclude those are somewhat indirectly related to each other.
+</ul>
+
+#### Where did I run into difficulties in the analysis?
+
+##### There were many difficulties for this project (before, during and after):
+<ul>
+<li>Before I started this project, I wasn't sure what kind of project I would do.  It took me over a week to decide and search for a dataset.</li>
+<li>When I decided to do this project, I was just interested in the area of earthquakes, and how many large earthquakes has happened so far.  I never really thought that I would be able to draw any conclusions from the dataset. I also wasn't sure:
+<ol>
+<li>how large is considered a large earthquakes.</li> 
+<li>what is the year range I should consider.</li> 
+<li> what kinds of questions I should find out</li> 
+<li> Will I be able to find out the answeres that I want to find.</li>
+</ol>
+After finding the dataset, and starting to investigate the data, I was going back and forth if I should change the data selection, such as changing the range of the magnitude, the range of the event.</li>
+<li>There are only few numerical fields and few categorical fields that are able to do the analysis.  Many fields that I created were after some struggles and not sure how I should do, than I created to help me to view on many occassions. </li>
+<li>Because each earthquake is independent from each other (unless there is a field of data shows it was aftershock of the major one), it is really difficult to create some graphs, such as line or bar graphs.  It seems scatter plot was the best choice.  Also it is a discrete event for all the data, so it just does not make sense to find the average, mean, or quartiles. </li>
+<li>After creating so many graphs, I wasn't sure what kind of analysis or conclusion I can make out of these.  Basic data information were created by USGS, I can't really change some of the information. Some fields looked interesting and I thought I might be able to use them to run analysis out of it, but it turned out many data for those variables have no information. </li>
+<li>There is lots of repeated code because I want to make sure when I compared each group, they have same basic template to compare though using different variables.</li>
+<li>I cannot really conclude or make positive analysis that my analysis will be correct for future earthquakes prediction.  Because each fault line, or the reasons that cause earthquakes, are unknown, in this dataset, the Earth has a mind of its own. </li>
+</ul>
+
+#### Where did I find successes?
+
+##### The first success that I found was when I created the plot 1 graph that is similar to the one USGS created, which it also helped me solve many of the difficulties/struggles that I had when I worked on this project.  Although I do not include the map, plate bouundaries, and active volcanoes locations, I feel I did the best as I can.  It proves that most of the earthquakes happen around "the Ring of Fire".  
+##### Through out this project, it helped me understand more about how to create different graphs using ggplot. Some of graphs in this datasets just not suitable than the other. 
+##### When I found out that most of earthquakes are shallow, and are rarely deep earthquakes, that kind of explains to me why many earthquakes cause severe damage/casualties when we hear that the eathquake is magnitude 7 or higher and it is shallow either from the news or other datasets. Also throughout out the years, every year will have at least 1 large earthquake that is magnitude 7 or higher.  
+##### And for the past 100+ years, there is no earthquake that is magnitude 7 or higher recording that happened at either Noth Pole or South Pole.
+
+#### How could the analysis be enriched in future work?
+
+##### I got this dataset through USGS website. Unfortunately in this data collection, it does not include some important information for this dataset. If it included:   
+<ul>
+<li> faultline - then maybe we can conclude or have a better prediction which faultline has a higher probability to have large earthquakes. </li> 
+<li> Phase of the Moon - we might be able to determine if it has some kind of relationship with the occurence of earthquakes.</li>  
+<li> Location of volcano - it can help to decide if because of volcanic activity that might affect the earthquake/faultline to occur.</li>  
+</ul> 
+##### USGS probably have all these information, but it probably needs to combine different datasets to have all the information. It would be nice to include in the search form to help future researchers. 
